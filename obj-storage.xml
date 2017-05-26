@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE section PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % common_entities SYSTEM "../../../common.ent">
+%common_entities;
+]>
+
+<section id="storage-obj-storage">
+  <title>Managing Object Storage</title>
+  <bridgehead>Objectives</bridgehead>
+  <para>After completing this section, students should be able to:</para>
+    <itemizedlist>
+      <listitem>
+        <para>Understand Object Storage.</para>
+      </listitem>
+    </itemizedlist>  
+    <itemizedlist> 
+      <listitem>
+        <para>Manage Swift as object storage.</para>
+      </listitem>
+    </itemizedlist>
+    <itemizedlist>
+      <listitem>
+        <para>Configure Swift in OpenStack.</para>
+      </listitem>
+    </itemizedlist>
+  <bridgehead>Swift Architecture</bridgehead>
+  <para>Swift is a fully distributed storage solution, where both static data and binary objects are stored.  It is neither a file system nor a real-time data storage system.   It can easily scale to multiple petabytes or billions of objects.</para>
+  <para>Swift has several different components which are all required for the architecture to work.</para>
+  <informaltable frame="all">
+    <tgroup cols="2">
+      <colspec colname="c1" colnum="1" colwidth="1.0*"/>
+      <colspec colname="c2" colnum="2" colwidth="2.0*"/>
+      <thead>
+        <row>
+          <entry>COMPONENT</entry>
+          <entry>DESCRIPTION</entry>
+        </row>  
+      </thead>
+      <tbody>
+        <row>
+          <entry>
+            Proxy Server
+          </entry>
+          <entry>
+            Processes all API calls and locates the object requested.  Encodes and decodes data if Erasure Code is being used.
+          </entry>
+        </row>
+        <row>
+          <entry>
+            Ring
+          </entry>
+          <entry>
+            Maps the names of the entities to their stored location on disk.  Accounts, containers and object servers each have their own ring
+          </entry>
+        </row>
+        <row>
+          <entry>
+            Account Server
+          </entry>
+          <entry>
+            Holds a list of all Containers
+          </entry>
+        </row>
+        <row>
+          <entry>
+            Container Server
+          </entry>
+          <entry>
+            Holds a list of all Objects
+          </entry>  
+        </row>
+        <row>
+          <entry>
+            Object Server
+          </entry>
+          <entry>
+            Stores, retrieves and deletes Objects
+          </entry>
+        </row>
+      </tbody>
+    </tgroup>
+  </informaltable>  
+  <para>
+    Requests are routed and objects are located by the Proxy server interacting with the appropriate ring.   The mapping between the stored entities and their physical location is handled by the ring itself. 
+  </para>  
+  <para>
+    By default, each partition of the ring is replicated three times to ensure a fully-distributed solution.  Data is evenly distributed  across the capacity of the cluster.   Zones ensure that data is isolated, as data is replicated across zones, failure in one zone does not impact the rest of the cluster.
+  </para>  
+  <bridgehead>Removing and Rebalancing Zones</bridgehead>
+  <para>
+    As with any storage system it is important to understand the concepts behind the storage system, to comprehend the policies and to design and plan carefully before production.  
+  </para>
+  <para>
+    Zones are created to ensure that failure is not an option.   Each data replica should reside within a different zone. By default there are 3 replicas.  Zone configuration ensures that should one zone fail there are still two up and running that can either accept new objects or retrieve already stored objects.
+  </para>  
+  <para>
+    The recommended number of zones is five, on five separate nodes.   As mentioned previously Swift, by default, writes three replicas. If there are only three zones and one becomes unavailable Swift cannot handoff the replica to another node. With five nodes Swift has options and can automatically write the replica to another node ensuring that eventually there will be three replicas.
+  </para>  
+  <para>
+    After Swift is setup and configured it is not impossible to change, rectify or alter the storage policy.  Extra devices can be added at any time.
+  </para>
+  <para>
+    Storage rings can be built on any hardware which has the appropriate version of Swift installed.  Upon building or rebalancing (changing) of the ring structure the rings must be redistributed to include all of the servers in the cluster.  The <code>swift-ring-builder</code> utility is used to build and manage rings. This utility will assign partitions to devices. The ring builder will try to ensure that replicas are kept as far apart from each other as possible.
+  </para>
+  <bridgehead>Swift Commands</bridgehead>
+  <para>
+    There are two sets of commands for swift, the old and the new.   The older commands, for example: swift post, swift list, swift stat all still work.   However, OpenStack is moving away from commands which reference any core element and is shifting focus to the OpenStack Unified CLI or OpenStack CLI commands as shown in the following table.
+  </para> 
+  <itemizedlist>
+    <listitem>
+      <para> <code>openstack container create [container name]</code> - will create a new container</para>
+    </listitem> 
+  </itemizedlist>  
+  <itemizedlist>
+    <listitem>
+      <para> <code>openstack container delete [container name]</code> - will delete an existing container</para>
+    </listitem> 
+  </itemizedlist>  
+  <itemizedlist>
+    <listitem>
+      <para> <code>openstack container list</code> - will list existing containers</para>
+    </listitem> 
+  </itemizedlist>  
+  <itemizedlist>
+    <listitem>
+      <para> <code>openstack container save [container name]</code> - will save the contents of an existing container locally</para>
+    </listitem> 
+  </itemizedlist>  
+  <itemizedlist>
+    <listitem>
+      <para> <code>openstack object create [container name] [object name]</code> - will upload an object to a specified container</para>
+    </listitem> 
+  </itemizedlist>  
+  <itemizedlist>
+    <listitem>
+      <para> <code>openstack object delete [container name] [object name]</code> - will delete an object from a specified container</para>
+    </listitem> 
+  </itemizedlist>  
+  <itemizedlist>
+    <listitem>
+      <para> <code>openstack object list [container name]</code> - will list all objects in a specified container</para>
+    </listitem> 
+  </itemizedlist>  
+  <bridgehead>Benefits, Use Cases and Best Practices</bridgehead>
+  <title>Object Storage vs Block Storage</title>
+  <para>
+     One of the main differences between block storage and object storage is that a volume can only be accessed via instances, and by one instance at a time.   Whereas any instnace or service can access the objects stored in containers as all objects stored within Swift has an accessible URL.   Swift also supports the Amazon Simple Storage Service API.
+   </para>
+ <title> Use Cases </title>
+   <para>
+     A major university uses Swift to store videos of every sporting event for both men's and women's sporting events. All events for an entire year are stored in an omnipresent and easily accessible storage solution. Students, alumni, and fans can use any internet enabled web broswer to access the universty’s web site and click on a link to view, in its entirety, their desired sporting event.  
+   </para>  
+   <para>
+     It's Friday night and a drive has failed.  You don't want to start messing with it before the weekend.  Swift starts an automatic, self-healing, workaround by writing replicas to a hand-off node.  Monday comes around and you change the failed drive, format it and mount it.   The drive is, of course, empty.  Swift, however, will automatically start replicating data that is supposed to be in that zone.  In this case, you do not even have to do anything to the ring as the physical drive was simply replaced - zones do not change so no need to rebalance the ring.  
+   </para>
+   <para>
+     Note: If you were the change the size of the physical drive, then you would have to rebalance the ring.
+   </para>
+   <bridgehead>The Benefits of using Swift</bridgehead>
+   <para>
+     Object storage has several distinct advantages over volume storage.   As previously mentioned, it is accessible from any OpenStack service, it support Amazon S3 API and is fully-distributed.   
+   </para>
+   <para>
+     Cost can also be an advantage, with object storage you only pay for the amount of storage that you use – you upload 5GB you pay for 5GB.   With volume storage, you pay for the size of the disk you create – you create a 50GB volume you will pay for all 50GB whether or not they are used.   However, be aware that if you use Swift over multiple data centers then the cost can spiral as you are moving a lot of data over the internet which can get expensive.
+   </para>
+   <para>
+     Swift is best used for large pools of small objects.   It is easily scalable – volumes are not.  
+   </para>  
+  
+  <orderedlist id="cl210-storageobjstorage-demo">
+    <title>Managing Object Storage</title>
+    <para>
+      The following steps outline the process for managing object storage using the OpenStack unified CLI.
+    </para>
+    <listitem>
+      <para>
+        Source the keystone credentials environment file to load the credentials for a user with the role <code>swiftoperator</code>.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        Verify that there is no container available using the <command>openstack container list</command> command.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        Create a new container using the <command>openstack container create</command> command.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        Verify that the container has been correctly created using the <command>openstack container list</command> command.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        Create a 10&nbsp;MB file using the <command>dd</command> command.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        Upload the previous file as an object to the previously created container using the <command>openstack object create</command> command.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        Verify that the object has been correctly created using the <command>openstack object list</command> command.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        Download the previous object using the <command>openstack object save</command> command.
+        Use the <command>--file</command> option to specify a destination filename different from the object's name.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        Delete the object using the <command>openstack object delete</command> command.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        Delete the container using the <command>openstack container delete</command> command.
+      </para>
+    </listitem>
+  </orderedlist>
+  
+  <note role="References">
+    <para>
+      Further information is available in the Object Storage section of the
+      <emphasis>Storage Guide</emphasis> for &RHELOSP; at
+      <ulink url="https://access.redhat.com/documentation/en/red-hat-openstack-platform/"/>
+    </para>
+  </note>
+  
+</section> 
+  
+  
+  
+  
+  
